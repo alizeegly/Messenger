@@ -61,12 +61,39 @@ class AppDelegate: UIResponder, UIApplicationDelegate, GIDSignInDelegate {
             return
         }
         
-        DatabaseManager.shared.userExists(with: email) { exists in
+        DatabaseManager.shared.userExists(with: email, completion: { exists in
             if !exists {
                 // insert to database
-                DatabaseManager.shared.insertUser(with: ChatAppUser(firstName: firstName, lastName: lastName, emailAdress: email))
+                let chatUser = ChatAppUser(firstName: firstName, lastName: lastName, emailAdress: email)
+                DatabaseManager.shared.insertUser(with: chatUser, completion: { success in
+                    if success {
+                        // upload image
+                        if user.profile.hasImage{
+                            guard let url = user.profile.imageURL(withDimension: 200) else {
+                                return
+                            }
+                            
+                            URLSession.shared.dataTask(with: url, completionHandler: { data, _, _ in
+                                guard let data = data else {
+                                    return
+                                }
+                                
+                                let filename = chatUser.profilPictureFilename
+                                StorageManager.shared.uploadProfilPicture(with: data, filename: filename, completion: { result in
+                                    switch result {
+                                        case .success(let downloadUrl):
+                                            UserDefaults.standard.set(downloadUrl, forKey: "profile_picture_url")
+                                            print(downloadUrl)
+                                        case .failure(let error):
+                                            print("Storage Manager error : \(error)")
+                                    }
+                                })
+                            }).resume()
+                        }
+                    }
+                })
             }
-        }
+        })
         
         
         guard let authentication = user.authentication else {
